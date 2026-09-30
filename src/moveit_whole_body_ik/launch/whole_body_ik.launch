@@ -5,7 +5,7 @@
        default="$(find moveit_whole_body_ik)/../../maps/scans_voxel_5cm_xyz.pcd"/>
   <arg name="pcd_resolution" default="0.05"/>
 
-  <include file="$(find ir100_moveit)/launch/move_group.launch">
+  <include file="$(find moveit_whole_body_ik)/launch/moveit/move_group.launch">
     <arg name="load_robot_description" value="true"/>
     <arg name="allow_trajectory_execution" value="true"/>
     <arg name="moveit_controller_manager" value="fake"/>
@@ -56,7 +56,7 @@
     <remap from="/joint_states" to="/whole_body_moveit_ik/solution_joint_states"/>
   </node>
 
-  <include if="$(arg use_rviz)" file="$(find ir100_moveit)/launch/moveit_rviz.launch">
+  <include if="$(arg use_rviz)" file="$(find moveit_whole_body_ik)/launch/moveit/moveit_rviz.launch">
     <arg name="rviz_config" value="$(find moveit_whole_body_ik)/launch/moveit_whole_body_ik.rviz"/>
   </include>
 </launch>

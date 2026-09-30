@@ -104,6 +104,6 @@ install(FILES csv_whole_body_ik_panel_plugin.xml
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
-install(DIRECTORY srv launch data
+install(DIRECTORY srv launch data urdf meshes config
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )

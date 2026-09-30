@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
 <robot name="ir100" xmlns:xacro="http://ros.org/wiki/xacro">
-  <xacro:include filename="$(find ir100_description)/urdf/ir100.xacro" />
+  <!-- This entrypoint is directly consumable by the VSCode URDF Visualizer. -->
+  <xacro:include filename="ir100.xacro" />
   <xacro:ir100_robot />
 </robot>

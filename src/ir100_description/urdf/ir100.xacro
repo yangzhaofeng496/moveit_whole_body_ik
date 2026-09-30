@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <robot name="ir100_robot" xmlns:xacro="http://ros.org/wiki/xacro">
-  <xacro:include filename="$(find dobot_description)/urdf/cr10_robot_urdf.xacro" />
+  <!-- Relative include keeps the VSCode URDF Visualizer independent of ROS_PACKAGE_PATH. -->
+  <xacro:include filename="../../dobot_description/urdf/cr10_robot_urdf.xacro" />
 
 <xacro:macro name="ir100_robot">
   <material name="White">
