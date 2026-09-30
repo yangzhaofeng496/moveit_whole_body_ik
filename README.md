@@ -19,8 +19,6 @@ are intentionally ignored.
 
 ![RViz whole-body IK demonstration](demo.gif)
 
-[Download the full-resolution demo video](demo.mp4)
-
 ## Build, launch, and verify
 
 The host needs ROS Noetic with MoveIt, RViz, PCL, and OctoMap installed.
