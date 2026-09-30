@@ -15,6 +15,10 @@ All bundled source assets are kept in this repository so the final system does
 not require the original REMAIN-Planner checkout. Generated catkin products
 are intentionally ignored.
 
+## Demo
+
+[Watch the RViz whole-body IK demonstration](demo.mp4)
+
 ## Build, launch, and verify
 
 The host needs ROS Noetic with MoveIt, RViz, PCL, and OctoMap installed.
