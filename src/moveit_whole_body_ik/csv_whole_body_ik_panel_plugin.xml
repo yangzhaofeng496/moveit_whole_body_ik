@@ -4,4 +4,7 @@
          base_class_type="rviz::Panel">
     <description>Load CSV end-effector poses and solve them with whole-body IK.</description>
   </class>
+  <class name="moveit_whole_body_ik/VirtualCameraPanel" type="moveit_whole_body_ik::VirtualCameraPanel" base_class_type="rviz::Panel">
+    <description>Virtual camera preview of the selected CSV pose.</description>
+  </class>
 </library>

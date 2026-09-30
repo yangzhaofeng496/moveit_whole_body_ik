@@ -1,9 +1,19 @@
 #include "moveit_whole_body_ik/csv_whole_body_ik_panel.hpp"
+#include "moveit_whole_body_ik/csv_pose_utils.hpp"
 
 #include <pluginlib/class_list_macros.h>
 #include <ros/package.h>
+#include <rviz/render_panel.h>
+#include <rviz/visualization_manager.h>
+
+#include <OgreCamera.h>
+#include <OgreQuaternion.h>
+#include <OgreRenderWindow.h>
+#include <OgreViewport.h>
 
 #include <QComboBox>
+#include <QCheckBox>
+#include <QDoubleSpinBox>
 #include <QFileDialog>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -11,7 +21,9 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSpinBox>
+#include <QSlider>
 #include <QTableWidget>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -50,6 +62,16 @@ std::vector<std::string> splitCsv(const std::string& line) {
   return fields;
 }
 
+std::string csvField(const std::string& value) {
+  if (value.find_first_of(",\"\n\r") == std::string::npos) return value;
+  std::string escaped = "\"";
+  for (const char character : value) {
+    if (character == '\"') escaped += "\"\"";
+    else escaped += character;
+  }
+  return escaped + "\"";
+}
+
 double number(const std::vector<std::string>& row,
               const std::unordered_map<std::string, size_t>& columns,
               const std::string& name, double fallback = 0.0) {
@@ -65,12 +87,42 @@ CsvWholeBodyIkPanel::CsvWholeBodyIkPanel(QWidget* parent) : rviz::Panel(parent) 
   path_edit_->setPlaceholderText("CSV file containing ee_x...ee_qw");
   browse_button_ = new QPushButton("Browse", this);
   load_button_ = new QPushButton("Load CSV", this);
+  save_button_ = new QPushButton("Save CSV", this);
+  save_as_button_ = new QPushButton("Save As...", this);
   point_box_ = new QComboBox(this);
   index_spin_ = new QSpinBox(this);
   previous_button_ = new QPushButton("Previous", this);
   next_button_ = new QPushButton("Next", this);
   solve_button_ = new QPushButton("Solve Current", this);
   play_button_ = new QPushButton("Play", this);
+  auto makePoseEditor = [this](double minimum, double maximum, int decimals) {
+    auto* editor = new QDoubleSpinBox(this);
+    editor->setRange(minimum, maximum);
+    editor->setDecimals(decimals);
+    editor->setSingleStep(decimals == 3 ? 0.01 : 1.0);
+    editor->setEnabled(false);
+    return editor;
+  };
+  x_edit_ = makePoseEditor(-1000.0, 1000.0, 3);
+  y_edit_ = makePoseEditor(-1000.0, 1000.0, 3);
+  z_edit_ = makePoseEditor(-1000.0, 1000.0, 3);
+  angle_step_edit_ = makePoseEditor(0.01, 360.0, 2);
+  angle_step_edit_->setValue(1.0);
+  auto makeAngleSlider = [this]() {
+    auto* slider = new QSlider(Qt::Horizontal, this);
+    slider->setRange(-36000, 36000);
+    slider->setSingleStep(1);
+    slider->setPageStep(100);
+    slider->setEnabled(false);
+    return slider;
+  };
+  roll_slider_ = makeAngleSlider();
+  pitch_slider_ = makeAngleSlider();
+  yaw_slider_ = makeAngleSlider();
+  roll_value_label_ = new QLabel(this);
+  pitch_value_label_ = new QLabel(this);
+  yaw_value_label_ = new QLabel(this);
+  virtual_camera_enabled_ = new QCheckBox("Virtual camera preview", this);
   status_label_ = new QLabel("Load a CSV to begin", this);
   metrics_table_ = new QTableWidget(this);
   playback_timer_ = new QTimer(this);
@@ -102,27 +154,68 @@ CsvWholeBodyIkPanel::CsvWholeBodyIkPanel(QWidget* parent) : rviz::Panel(parent) 
   nav_layout->addWidget(next_button_);
   nav_layout->addWidget(solve_button_);
   nav_layout->addWidget(play_button_);
+  auto* save_layout = new QHBoxLayout;
+  save_layout->addWidget(save_button_);
+  save_layout->addWidget(save_as_button_);
+  auto* pose_layout = new QFormLayout;
+  pose_layout->addRow("X (m)", x_edit_);
+  pose_layout->addRow("Y (m)", y_edit_);
+  pose_layout->addRow("Z (m)", z_edit_);
+  pose_layout->addRow("Angle step (deg)", angle_step_edit_);
+  auto addAngleRow = [&pose_layout](const char* name, QSlider* slider, QLabel* value) {
+    auto* row = new QHBoxLayout;
+    row->addWidget(slider);
+    row->addWidget(value);
+    pose_layout->addRow(name, row);
+  };
+  addAngleRow("Roll (deg)", roll_slider_, roll_value_label_);
+  addAngleRow("Pitch (deg)", pitch_slider_, pitch_value_label_);
+  addAngleRow("Yaw (deg)", yaw_slider_, yaw_value_label_);
+  auto* content = new QWidget(this);
+  auto* content_layout = new QVBoxLayout(content);
+  content_layout->addLayout(path_layout);
+  content_layout->addWidget(load_button_);
+  content_layout->addLayout(save_layout);
+  content_layout->addWidget(point_box_);
+  content_layout->addWidget(index_spin_);
+  content_layout->addLayout(nav_layout);
+  content_layout->addLayout(pose_layout);
+  content_layout->addWidget(status_label_);
+  content_layout->addWidget(metrics_table_);
+  content_layout->addStretch(1);
+  scroll_area_ = new QScrollArea(this);
+  scroll_area_->setWidgetResizable(true);
+  scroll_area_->setWidget(content);
   auto* layout = new QVBoxLayout;
-  layout->addLayout(path_layout);
-  layout->addWidget(load_button_);
-  layout->addWidget(point_box_);
-  layout->addWidget(index_spin_);
-  layout->addLayout(nav_layout);
-  layout->addWidget(status_label_);
-  layout->addWidget(metrics_table_);
-  layout->addStretch(1);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->addWidget(scroll_area_);
   setLayout(layout);
 
   solve_client_ = nh_.serviceClient<SolveSampledWholeBodyIK>(
       "/whole_body_moveit_ik/solve");
   marker_pub_ = nh_.advertise<visualization_msgs::MarkerArray>(
       "/whole_body_ik/csv_points", 1, true);
+  camera_pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>(
+      "/whole_body_ik/virtual_camera_pose", 1, true);
   connect(browse_button_, &QPushButton::clicked, this, &CsvWholeBodyIkPanel::browseCsv);
   connect(load_button_, &QPushButton::clicked, this, &CsvWholeBodyIkPanel::loadCsv);
+  connect(save_button_, &QPushButton::clicked, this, &CsvWholeBodyIkPanel::saveCsv);
+  connect(save_as_button_, &QPushButton::clicked, this, &CsvWholeBodyIkPanel::saveCsvAs);
   connect(previous_button_, &QPushButton::clicked, this, &CsvWholeBodyIkPanel::previousPoint);
   connect(next_button_, &QPushButton::clicked, this, &CsvWholeBodyIkPanel::nextPoint);
   connect(solve_button_, &QPushButton::clicked, this, &CsvWholeBodyIkPanel::solveCurrent);
   connect(play_button_, &QPushButton::clicked, this, &CsvWholeBodyIkPanel::togglePlayback);
+  for (auto* editor : {x_edit_, y_edit_, z_edit_}) {
+    connect(editor, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, [this](double) { applyPoseEdits(); });
+  }
+  for (auto* slider : {roll_slider_, pitch_slider_, yaw_slider_}) {
+    connect(slider, &QSlider::valueChanged, this, [this](int) { applyPoseEdits(); });
+  }
+  connect(angle_step_edit_, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+          this, &CsvWholeBodyIkPanel::updateAngleStep);
+  connect(virtual_camera_enabled_, &QCheckBox::toggled,
+          this, &CsvWholeBodyIkPanel::toggleVirtualCamera);
   connect(point_box_, QOverload<int>::of(&QComboBox::currentIndexChanged),
           this, [this](int index) { current_index_ = index; index_spin_->setValue(index); updatePointUi(); });
   connect(index_spin_, QOverload<int>::of(&QSpinBox::valueChanged),
@@ -133,6 +226,7 @@ CsvWholeBodyIkPanel::CsvWholeBodyIkPanel(QWidget* parent) : rviz::Panel(parent) 
 void CsvWholeBodyIkPanel::save(rviz::Config config) const {
   rviz::Panel::save(config);
   config.mapSetValue("csv_path", path_edit_->text());
+  config.mapSetValue("virtual_camera_enabled", virtual_camera_enabled_->isChecked());
 }
 
 void CsvWholeBodyIkPanel::load(const rviz::Config& config) {
@@ -146,6 +240,8 @@ void CsvWholeBodyIkPanel::load(const rviz::Config& config) {
     path_edit_->setText(path);
     parseCsv(path);
   }
+  bool enabled = false;
+  if (config.mapGetBool("virtual_camera_enabled", &enabled)) virtual_camera_enabled_->setChecked(enabled);
 }
 
 void CsvWholeBodyIkPanel::browseCsv() {
@@ -177,12 +273,19 @@ bool CsvWholeBodyIkPanel::parseCsv(const QString& path) {
     item.pose.orientation.y = number(row, columns, "ee_qy");
     item.pose.orientation.z = number(row, columns, "ee_qz");
     item.pose.orientation.w = number(row, columns, "ee_qw", 1.0);
+    item.row = row;
+    const auto rpy = quaternionToRpyDegrees(item.pose.orientation);
+    item.roll_degrees = rpy.roll;
+    item.pitch_degrees = rpy.pitch;
+    item.yaw_degrees = rpy.yaw;
     item.label = QString("%1: (%2, %3, %4)").arg(poses.size())
         .arg(item.pose.position.x, 0, 'f', 3).arg(item.pose.position.y, 0, 'f', 3)
         .arg(item.pose.position.z, 0, 'f', 3);
     poses.push_back(item);
   }
   poses_ = poses;
+  header_ = header;
+  columns_ = columns;
   point_status_.fill(-1, poses_.size());
   const double unknown = std::numeric_limits<double>::quiet_NaN();
   position_error_.fill(unknown, poses_.size());
@@ -195,14 +298,79 @@ bool CsvWholeBodyIkPanel::parseCsv(const QString& path) {
   point_box_->setEnabled(!poses_.isEmpty()); index_spin_->setEnabled(!poses_.isEmpty());
   previous_button_->setEnabled(!poses_.isEmpty()); next_button_->setEnabled(!poses_.isEmpty());
   solve_button_->setEnabled(!poses_.isEmpty()); play_button_->setEnabled(!poses_.isEmpty());
+  save_button_->setEnabled(!poses_.isEmpty()); save_as_button_->setEnabled(!poses_.isEmpty());
+  for (auto* editor : {x_edit_, y_edit_, z_edit_, angle_step_edit_}) editor->setEnabled(!poses_.isEmpty());
+  for (auto* slider : {roll_slider_, pitch_slider_, yaw_slider_}) slider->setEnabled(!poses_.isEmpty());
   if (!poses_.isEmpty()) { point_box_->setCurrentIndex(0); updatePointUi(); }
   updateMetricsTable();
   publishCsvMarkers();
+  updateVirtualCamera();
   setStatus(QString("Loaded %1 CSV poses").arg(poses_.size()));
   return !poses_.isEmpty();
 }
 
 void CsvWholeBodyIkPanel::loadCsv() { parseCsv(path_edit_->text()); }
+
+void CsvWholeBodyIkPanel::toggleVirtualCamera(bool enabled) {
+  if (!enabled) { if (virtual_camera_panel_) virtual_camera_panel_->hide(); return; }
+  if (!vis_manager_) { setStatus("Virtual camera unavailable", true); return; }
+  if (!virtual_camera_panel_) {
+    virtual_camera_panel_ = new rviz::RenderPanel(this);
+    virtual_camera_panel_->setMinimumSize(640, 360);
+    virtual_camera_panel_->initialize(vis_manager_->getSceneManager(), vis_manager_);
+    static_cast<QVBoxLayout*>(scroll_area_->widget()->layout())->addWidget(virtual_camera_panel_);
+  }
+  virtual_camera_panel_->show();
+  updateVirtualCamera();
+}
+
+void CsvWholeBodyIkPanel::updateVirtualCamera() {
+  if (!virtual_camera_enabled_->isChecked() || !virtual_camera_panel_ || current_index_ < 0) return;
+  auto* window = virtual_camera_panel_->getRenderWindow();
+  if (!window || !window->getNumViewports()) return;
+  auto* camera = window->getViewport(0)->getCamera();
+  if (!camera) return;
+  const auto& pose = poses_[current_index_].pose;
+  camera->setPosition(pose.position.x, pose.position.y, pose.position.z);
+  camera->setOrientation(Ogre::Quaternion(pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z));
+  camera->setFOVy(Ogre::Degree(60.0));
+  camera->setNearClipDistance(0.02);
+  camera->setFarClipDistance(100.0);
+  window->update();
+}
+
+void CsvWholeBodyIkPanel::saveCsv() {
+  if (!path_edit_->text().isEmpty()) writeCsv(path_edit_->text());
+}
+
+void CsvWholeBodyIkPanel::saveCsvAs() {
+  const QString path = QFileDialog::getSaveFileName(this, "Save edited CSV", path_edit_->text(), "CSV (*.csv)");
+  if (!path.isEmpty() && writeCsv(path)) path_edit_->setText(path);
+}
+
+bool CsvWholeBodyIkPanel::writeCsv(const QString& path) {
+  if (header_.empty() || poses_.isEmpty()) { setStatus("No CSV poses to save", true); return false; }
+  std::ofstream file(path.toStdString());
+  if (!file) { setStatus("Cannot write CSV", true); return false; }
+  const auto writeRow = [&file](const std::vector<std::string>& row) {
+    for (size_t i = 0; i < row.size(); ++i) { if (i) file << ','; file << csvField(row[i]); }
+    file << '\n';
+  };
+  writeRow(header_);
+  for (const auto& pose : poses_) {
+    auto row = pose.row;
+    row.resize(header_.size());
+    const auto setNumber = [&row, this](const char* column, double value) {
+      row[columns_.at(column)] = QString::number(value, 'g', 17).toStdString();
+    };
+    setNumber("ee_x", pose.pose.position.x); setNumber("ee_y", pose.pose.position.y); setNumber("ee_z", pose.pose.position.z);
+    setNumber("ee_qx", pose.pose.orientation.x); setNumber("ee_qy", pose.pose.orientation.y);
+    setNumber("ee_qz", pose.pose.orientation.z); setNumber("ee_qw", pose.pose.orientation.w);
+    writeRow(row);
+  }
+  setStatus(QString("Saved %1 edited poses").arg(poses_.size()));
+  return true;
+}
 
 void CsvWholeBodyIkPanel::updatePointUi() {
   if (current_index_ >= 0 && current_index_ < poses_.size()) {
@@ -211,6 +379,55 @@ void CsvWholeBodyIkPanel::updatePointUi() {
       metrics_table_->selectRow(current_index_);
       metrics_table_->scrollToItem(metrics_table_->item(current_index_, 0));
     }
+  }
+  updatePoseEditors();
+}
+
+void CsvWholeBodyIkPanel::updatePoseEditors() {
+  if (current_index_ < 0 || current_index_ >= poses_.size()) return;
+  const auto& item = poses_[current_index_];
+  const auto& pose = item.pose;
+  const bool blocked[] = {x_edit_->blockSignals(true), y_edit_->blockSignals(true), z_edit_->blockSignals(true),
+                          roll_slider_->blockSignals(true), pitch_slider_->blockSignals(true), yaw_slider_->blockSignals(true)};
+  x_edit_->setValue(pose.position.x); y_edit_->setValue(pose.position.y); z_edit_->setValue(pose.position.z);
+  roll_slider_->setValue(std::lround(item.roll_degrees * 100.0));
+  pitch_slider_->setValue(std::lround(item.pitch_degrees * 100.0));
+  yaw_slider_->setValue(std::lround(item.yaw_degrees * 100.0));
+  x_edit_->blockSignals(blocked[0]); y_edit_->blockSignals(blocked[1]); z_edit_->blockSignals(blocked[2]);
+  roll_slider_->blockSignals(blocked[3]); pitch_slider_->blockSignals(blocked[4]); yaw_slider_->blockSignals(blocked[5]);
+  roll_value_label_->setText(QString::number(roll_slider_->value() / 100.0, 'f', 2));
+  pitch_value_label_->setText(QString::number(pitch_slider_->value() / 100.0, 'f', 2));
+  yaw_value_label_->setText(QString::number(yaw_slider_->value() / 100.0, 'f', 2));
+}
+
+void CsvWholeBodyIkPanel::applyPoseEdits() {
+  if (current_index_ < 0 || current_index_ >= poses_.size()) return;
+  auto& item = poses_[current_index_];
+  auto& pose = item.pose;
+  pose.position.x = x_edit_->value(); pose.position.y = y_edit_->value(); pose.position.z = z_edit_->value();
+  item.roll_degrees = roll_slider_->value() / 100.0;
+  item.pitch_degrees = pitch_slider_->value() / 100.0;
+  item.yaw_degrees = yaw_slider_->value() / 100.0;
+  pose.orientation = rpyDegreesToQuaternion(item.roll_degrees, item.pitch_degrees,
+                                             item.yaw_degrees);
+  roll_value_label_->setText(QString::number(roll_slider_->value() / 100.0, 'f', 2));
+  pitch_value_label_->setText(QString::number(pitch_slider_->value() / 100.0, 'f', 2));
+  yaw_value_label_->setText(QString::number(yaw_slider_->value() / 100.0, 'f', 2));
+  poses_[current_index_].label = QString("%1: (%2, %3, %4)").arg(current_index_)
+      .arg(pose.position.x, 0, 'f', 3).arg(pose.position.y, 0, 'f', 3).arg(pose.position.z, 0, 'f', 3);
+  point_box_->setItemText(current_index_, poses_[current_index_].label);
+  point_status_[current_index_] = -1;
+  result_messages_[current_index_].clear();
+  position_error_[current_index_] = orientation_error_[current_index_] = solve_time_ms_[current_index_] = std::numeric_limits<double>::quiet_NaN();
+  updateMetricsTable(); publishCsvMarkers(); updateVirtualCamera();
+  setStatus(QString("Edited point %1; save CSV to persist").arg(current_index_ + 1));
+}
+
+void CsvWholeBodyIkPanel::updateAngleStep(double degrees) {
+  const int step = std::max(1, static_cast<int>(std::lround(degrees * 100.0)));
+  for (auto* slider : {roll_slider_, pitch_slider_, yaw_slider_}) {
+    slider->setSingleStep(step);
+    slider->setPageStep(std::min(36000, step * 10));
   }
 }
 
@@ -283,6 +500,13 @@ void CsvWholeBodyIkPanel::publishCsvMarkers() {
     array.markers.push_back(marker);
   }
   marker_pub_.publish(array);
+  if (current_index_ >= 0 && current_index_ < poses_.size()) {
+    geometry_msgs::PoseStamped camera_pose;
+    camera_pose.header.frame_id = reference_frame_.toStdString();
+    camera_pose.header.stamp = ros::Time::now();
+    camera_pose.pose = poses_[current_index_].pose;
+    camera_pose_pub_.publish(camera_pose);
+  }
 }
 
 void CsvWholeBodyIkPanel::togglePlayback() {

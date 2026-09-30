@@ -57,7 +57,8 @@ if(rviz_QT_VERSION VERSION_LESS "5")
 else()
   find_package(Qt5 ${rviz_QT_VERSION} EXACT REQUIRED Core Widgets)
   qt5_wrap_cpp(CSV_PANEL_MOC
-    include/moveit_whole_body_ik/csv_whole_body_ik_panel.hpp)
+    include/moveit_whole_body_ik/csv_whole_body_ik_panel.hpp
+    include/moveit_whole_body_ik/virtual_camera_panel.hpp)
   set(CSV_PANEL_QT_LIBRARIES Qt5::Widgets)
 endif()
 
@@ -65,6 +66,7 @@ add_definitions(-DQT_NO_KEYWORDS)
 
 add_library(moveit_whole_body_ik_csv_panel
   src/csv_whole_body_ik_panel.cpp
+  ../virtual_camera_panel.cpp
   ${CSV_PANEL_MOC}
 )
 add_dependencies(moveit_whole_body_ik_csv_panel
@@ -107,3 +109,10 @@ install(FILES csv_whole_body_ik_panel_plugin.xml
 install(DIRECTORY srv launch data urdf meshes config
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
+
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(csv_pose_utils_test test/csv_pose_utils_test.cpp)
+  if(TARGET csv_pose_utils_test)
+    target_link_libraries(csv_pose_utils_test ${catkin_LIBRARIES} gtest_main)
+  endif()
+endif()
