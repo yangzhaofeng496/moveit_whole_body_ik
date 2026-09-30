@@ -18,7 +18,10 @@
   <depend>octomap</depend>
   <depend>octomap_msgs</depend>
   <depend>pcl_conversions</depend>
+  <depend>pluginlib</depend>
+  <depend>roslib</depend>
   <depend>roscpp</depend>
+  <depend>rviz</depend>
   <depend>sensor_msgs</depend>
   <depend>tf2_ros</depend>
   <depend>visualization_msgs</depend>
@@ -26,4 +29,8 @@
   <exec_depend>message_runtime</exec_depend>
   <exec_depend>ir100_moveit</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
+
+  <export>
+    <rviz plugin="${prefix}/csv_whole_body_ik_panel_plugin.xml" />
+  </export>
 </package>

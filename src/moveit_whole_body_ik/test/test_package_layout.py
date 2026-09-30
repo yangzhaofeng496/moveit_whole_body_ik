@@ -24,6 +24,19 @@ class CorePackageLayoutTest(unittest.TestCase):
         self.assertLess(transform.index("if (crop_to_workspace_"),
                         transform.index("addDisplayPoint(x, y, z);"))
 
+    def test_launch_uses_only_bundled_packages_and_map(self):
+        launch = (ROOT / "launch/whole_body_ik.launch").read_text()
+        self.assertIn("$(find ir100_moveit)", launch)
+        self.assertIn(
+            "$(find moveit_whole_body_ik)/../../maps/scans_voxel_5cm_xyz.pcd",
+            launch,
+        )
+        self.assertNotIn("remani_planner", launch)
+
+    def test_rviz_uses_the_new_panel_plugin_class(self):
+        rviz = (ROOT / "launch/moveit_whole_body_ik.rviz").read_text()
+        self.assertIn("moveit_whole_body_ik/CsvWholeBodyIkPanel", rviz)
+
 
 if __name__ == "__main__":
     unittest.main()

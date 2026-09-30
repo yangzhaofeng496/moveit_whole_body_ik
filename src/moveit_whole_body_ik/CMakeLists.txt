@@ -13,7 +13,10 @@ find_package(catkin REQUIRED COMPONENTS
   moveit_ros_planning
   octomap_msgs
   pcl_conversions
+  pluginlib
+  roslib
   roscpp
+  rviz
   sensor_msgs
   tf2_ros
   visualization_msgs
@@ -35,14 +38,39 @@ generate_messages(
 catkin_package(
   CATKIN_DEPENDS
     geometry_msgs kdl_parser message_runtime moveit_core moveit_msgs
-    moveit_ros_planning octomap_msgs pcl_conversions roscpp
-    sensor_msgs tf2_ros visualization_msgs
+    moveit_ros_planning octomap_msgs pcl_conversions pluginlib roslib roscpp
+    rviz sensor_msgs tf2_ros visualization_msgs
 )
 
 include_directories(
+  include
   ${catkin_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
 )
+
+if(rviz_QT_VERSION VERSION_LESS "5")
+  find_package(Qt4 ${rviz_QT_VERSION} EXACT REQUIRED QtCore QtGui)
+  include(${QT_USE_FILE})
+  qt4_wrap_cpp(CSV_PANEL_MOC
+    include/moveit_whole_body_ik/csv_whole_body_ik_panel.hpp)
+  set(CSV_PANEL_QT_LIBRARIES ${QT_LIBRARIES})
+else()
+  find_package(Qt5 ${rviz_QT_VERSION} EXACT REQUIRED Core Widgets)
+  qt5_wrap_cpp(CSV_PANEL_MOC
+    include/moveit_whole_body_ik/csv_whole_body_ik_panel.hpp)
+  set(CSV_PANEL_QT_LIBRARIES Qt5::Widgets)
+endif()
+
+add_definitions(-DQT_NO_KEYWORDS)
+
+add_library(moveit_whole_body_ik_csv_panel
+  src/csv_whole_body_ik_panel.cpp
+  ${CSV_PANEL_MOC}
+)
+add_dependencies(moveit_whole_body_ik_csv_panel
+  ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(moveit_whole_body_ik_csv_panel
+  ${catkin_LIBRARIES} ${CSV_PANEL_QT_LIBRARIES})
 
 add_executable(moveit_ik_service_node src/moveit_ik_service_node.cpp)
 add_dependencies(moveit_ik_service_node
@@ -66,9 +94,16 @@ install(TARGETS
   moveit_ik_service_node
   sampled_whole_body_ik_service_node
   pcd_octomap_planning_scene_node
+  moveit_whole_body_ik_csv_panel
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-install(DIRECTORY srv
+install(FILES csv_whole_body_ik_panel_plugin.xml
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
+install(DIRECTORY srv launch data
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
