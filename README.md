@@ -17,7 +17,7 @@ are intentionally ignored.
 
 ## Demo
 
-![RViz whole-body IK demonstration](demo.gif)
+<img src="demo.gif" alt="RViz whole-body IK demonstration" width="100%">
 
 ## Build, launch, and verify
 
