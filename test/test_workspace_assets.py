@@ -14,6 +14,11 @@ class WorkspaceAssetTest(unittest.TestCase):
         self.assertTrue((ROOT / "src/ir100_description/urdf/ir100_robot.xacro").is_file())
         self.assertTrue((ROOT / "src/dobot_description/urdf/cr10_robot_urdf.xacro").is_file())
         self.assertTrue((ROOT / "maps/scans_voxel_5cm_xyz.pcd").is_file())
+        self.assertTrue((ROOT / "maps/smoke_test.pcd").is_file())
+
+    def test_workspace_has_portable_build_and_verification_scripts(self):
+        self.assertTrue((ROOT / "scripts/build.sh").is_file())
+        self.assertTrue((ROOT / "scripts/verify.sh").is_file())
 
 
 if __name__ == "__main__":

@@ -4,6 +4,9 @@
 /logs/
 /.catkin_workspace
 /.catkin_tools/
+/src/CMakeLists.txt
+/.verify_*.log
+/.verify_*.yaml
 *.pyc
 __pycache__/
 .vscode/

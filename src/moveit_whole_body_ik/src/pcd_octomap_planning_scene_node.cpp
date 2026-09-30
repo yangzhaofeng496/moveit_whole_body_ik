@@ -172,7 +172,7 @@ class PcdOctomapPlanningSceneNode {
       }
     }
 
-    if (data_offset == std::streampos(-1)) {
+    if (!has_binary_xyz || data_offset == std::streampos(-1)) {
       cloud_->clear();
       if (pcl::io::loadPCDFile<pcl::PointXYZ>(pcd_file_, *cloud_) != 0) {
         ROS_ERROR("Unable to load PCD file: %s", pcd_file_.c_str());
