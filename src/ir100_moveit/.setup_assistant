@@ -1,0 +1,11 @@
+moveit_setup_assistant_config:
+  URDF:
+    package: ""
+    relative_path: /tmp/ir100.urdf
+    xacro_args: ""
+  SRDF:
+    relative_path: config/ir100.srdf
+  CONFIG:
+    author_name: yang
+    author_email: 2398603105@qq.com
+    generated_timestamp: 1790671662
