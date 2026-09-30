@@ -17,7 +17,9 @@ are intentionally ignored.
 
 ## Demo
 
-[Watch the RViz whole-body IK demonstration](demo.mp4)
+![RViz whole-body IK demonstration](demo.gif)
+
+[Download the full-resolution demo video](demo.mp4)
 
 ## Build, launch, and verify
 
