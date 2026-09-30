@@ -55,6 +55,14 @@
             <parent link="Link6" />
             <child link="arm_gripper_link" />
         </joint>
+
+        <!-- Virtual IK tool center: 0.14 m along arm_gripper_link local +Z. -->
+        <link name="ik_tip_link" />
+        <joint name="ik_tip_joint" type="fixed">
+            <origin xyz="0 0 0.14" rpy="0 0 0" />
+            <parent link="arm_gripper_link" />
+            <child link="ik_tip_link" />
+        </joint>
   
    <link name="left_wheel_link" />
   <joint name="left_wheel_joint" type="fixed">

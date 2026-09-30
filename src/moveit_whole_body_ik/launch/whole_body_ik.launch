@@ -38,7 +38,7 @@
         name="moveit_ik_service" output="screen">
     <param name="group_name" value="arm"/>
     <param name="base_link" value="base_link"/>
-    <param name="tip_link" value="arm_gripper_link"/>
+    <param name="tip_link" value="ik_tip_link"/>
   </node>
 
   <node pkg="moveit_whole_body_ik" type="sampled_whole_body_ik_service_node"
@@ -47,7 +47,7 @@
     <param name="collision_group_name" value="whole_body"/>
     <param name="planning_scene_topic" value="/planning_scene"/>
     <param name="base_link" value="base_link"/>
-    <param name="tip_link" value="arm_gripper_link"/>
+    <param name="tip_link" value="ik_tip_link"/>
   </node>
 
   <node pkg="robot_state_publisher" type="robot_state_publisher"
